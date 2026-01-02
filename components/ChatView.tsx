@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, GroundingSource, AppMode } from '../types';
 import { generateChatResponse, generateWithGrounding } from '../services/gemini';
-import { Send, Sparkles, ExternalLink, Bot, User, Loader2, ArrowUp } from 'lucide-react';
+import { Send, Sparkles, ExternalLink, Bot, User, Loader2, ArrowUp, AlertCircle } from 'lucide-react';
 
 interface ChatViewProps {
   mode: AppMode;
@@ -12,6 +12,7 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -20,12 +21,13 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [messages, isLoading, error]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    setError(null);
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -34,15 +36,16 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
     try {
       let response;
       if (mode === AppMode.GROUNDING) {
-        response = await generateWithGrounding(input);
+        response = await generateWithGrounding(currentInput);
       } else {
-        response = await generateChatResponse(input);
+        response = await generateChatResponse(currentInput);
       }
 
       const assistantMessage: Message = {
@@ -54,8 +57,9 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error('Error:', error);
+    } catch (err: any) {
+      console.error('Error:', err);
+      setError(err.message || 'An unexpected error occurred. Please check your connection and API key.');
     } finally {
       setIsLoading(false);
     }
@@ -63,16 +67,15 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Scrollable Message Container */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
-          {messages.length === 0 && (
+          {messages.length === 0 && !error && (
             <div className="h-[60vh] flex flex-col items-center justify-center text-center">
               <div className="w-12 h-12 bg-white flex items-center justify-center rounded-full mb-6">
                 <Bot className="w-7 h-7 text-black" />
               </div>
               <h1 className="text-3xl font-semibold mb-8 tracking-tight">How can I help you today?</h1>
-              <div className="grid grid-cols-2 gap-3 w-full max-w-2xl">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl px-4">
                 {[
                   { icon: "💡", text: "Explain quantum physics", sub: "to a five year old" },
                   { icon: "✍️", text: "Write a short story", sub: "about a lost robot" },
@@ -93,10 +96,10 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
           )}
 
           {messages.map((msg) => (
-            <div key={msg.id} className="flex gap-4 group">
+            <div key={msg.id} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/10 overflow-hidden">
                 {msg.role === 'user' ? (
-                  <div className="w-full h-full bg-indigo-600 flex items-center justify-center text-[10px] font-bold">U</div>
+                  <div className="w-full h-full bg-indigo-600 flex items-center justify-center text-[10px] font-bold text-white">U</div>
                 ) : (
                   <div className="w-full h-full bg-[#19c37d] flex items-center justify-center"><Bot className="w-5 h-5 text-white" /></div>
                 )}
@@ -105,7 +108,7 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
                 <p className="font-bold text-xs uppercase tracking-wider text-zinc-500">
                   {msg.role === 'user' ? 'You' : 'Gemini'}
                 </p>
-                <div className="text-[15px] leading-relaxed text-zinc-200 prose prose-invert max-w-none">
+                <div className="text-[15px] leading-relaxed text-zinc-200 prose prose-invert max-w-none whitespace-pre-wrap">
                   {msg.content}
                 </div>
                 
@@ -129,6 +132,24 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
             </div>
           ))}
 
+          {error && (
+            <div className="flex gap-4 bg-red-500/10 border border-red-500/20 p-4 rounded-2xl animate-in zoom-in-95 duration-200">
+              <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-red-400 mb-1">Error</p>
+                <p className="text-sm text-red-300/80">{error}</p>
+                <button 
+                  onClick={() => setError(null)}
+                  className="mt-3 text-xs text-red-400 font-bold hover:underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           {isLoading && (
             <div className="flex gap-4">
               <div className="w-8 h-8 rounded-full bg-[#19c37d] flex items-center justify-center animate-pulse">
@@ -147,7 +168,6 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
         </div>
       </div>
 
-      {/* Docked Bottom Input Area */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#212121] via-[#212121] to-transparent pt-10 pb-8 px-4">
         <div className="max-w-3xl mx-auto">
           <form 
@@ -165,8 +185,7 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
               }}
               placeholder="Message Gemini..."
               rows={1}
-              className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:ring-0 resize-none max-h-52 placeholder-zinc-500"
-              style={{ height: 'auto' }}
+              className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:ring-0 resize-none max-h-52 placeholder-zinc-500 min-h-[44px]"
             />
             <button
               type="submit"
@@ -185,7 +204,7 @@ const ChatView: React.FC<ChatViewProps> = ({ mode }) => {
             </button>
           </form>
           <p className="text-[11px] text-center text-zinc-500 mt-3">
-            Gemini can make mistakes. Check important info.
+            Gemini can make mistakes. Ensure API_KEY is set in Vercel.
           </p>
         </div>
       </div>

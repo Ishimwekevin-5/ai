@@ -3,7 +3,11 @@ import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { GroundingSource } from "../types";
 
 export const createAI = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please set API_KEY in your environment variables.");
+  }
+  return new GoogleGenAI({ apiKey });
 };
 
 export const generateChatResponse = async (
@@ -19,7 +23,11 @@ export const generateChatResponse = async (
   });
 
   const response = await chat.sendMessage({ message });
-  return { text: response.text || '' };
+  const text = response.text || '';
+  if (!text && response.candidates?.[0]?.finishReason) {
+    throw new Error(`Generation failed: ${response.candidates[0].finishReason}`);
+  }
+  return { text };
 };
 
 export const generateWithGrounding = async (
@@ -71,5 +79,5 @@ export const generateImage = async (prompt: string): Promise<string> => {
     return `data:image/png;base64,${part.inlineData.data}`;
   }
   
-  throw new Error("No image data received");
+  throw new Error("No image data received from model.");
 };
