@@ -1,0 +1,8 @@
+{
+  "name": "Gemini Vercel Starter",
+  "description": "A world-class React starter template showcasing the power of Gemini 3 Pro and Flash for text, grounding, and image generation.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
